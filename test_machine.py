@@ -2,10 +2,9 @@
 
 def machine(board, action_space):
     from joblib import load
-    from actor import Actor
     import torch
     
-    actor = load('hex_actor_1.a2c')
+    actor = load('v1_hex_actor.a2c')
     probs = actor.forward([1,2,3,4,5,6])
     #print(action_space)
     played_logic = probs.detach().clone()

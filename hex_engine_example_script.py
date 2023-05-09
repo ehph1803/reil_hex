@@ -6,7 +6,6 @@ from fhtw_hex import hex_engine as engine
 #this is how you will provide the agent you generate during the group project
 from fhtw_hex import example as eg
 import test_machine as test
-from actor import Actor
 
 #initializing a game object
 game = engine.hexPosition()
