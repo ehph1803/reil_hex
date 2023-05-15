@@ -1,3 +1,6 @@
+import sys
+import traceback
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as func
@@ -177,8 +180,8 @@ class A2CAgent:
         self.critic = Critic(self.device, in_channels=1, kernel_size=kernel_size)        
         self.opponent = opponent
 
-    def get_action_space(self):
-        return self.env.get_action_space()
+    def get_action_space(self, recode_black_white=True):
+        return self.env.get_action_space(recode_black_as_white=recode_black_white)
 
     def plot_durations(self, averaging_window=50, title=""):
         """
@@ -198,30 +201,29 @@ class A2CAgent:
     def play(self, num_episodes=500, gamma=0.99, lr_actor=1e-3, lr_critic=1e-3):
         pass
 
-    def _get_action(self, actor, state):
+    def get_action(self, actor, state, recode_black_white=False):
         probs = actor(state)
         #print(f"actual probs: {probs}")
-        # set played probabilities impossibly low that they are not picked
-        action_space = self.get_action_space()
+        # remove played spaces from probabilities
+        action_space = self.get_action_space(recode_black_white=recode_black_white)
         #print(action_space)
-        played_logic = probs.detach().clone()
+        free_logic = torch.zeros(probs.numel(), dtype=torch.bool)
 
         for (x, y) in action_space:
-            played_logic[x*self.env.size + y] = 0
+            free_logic[x*self.env.size + y] = 1
 
         #print(played_logic)
-
-        new_probs = torch.sub(probs, played_logic)
-
+        #print(probs)
+        new_probs = probs[free_logic]
         #print(new_probs)
 
         dist = torch.distributions.Categorical(probs=new_probs)
         action = dist.sample()
         #print(action)
+        #print(action)
         log_prob = dist.log_prob(action)
-        x = int(action.detach().numpy() / self.env.size)
-        y = int(action.detach().numpy() % self.env.size)
-        action = (x, y)
+
+        action = action_space[action.detach().numpy()]
 
         return action, log_prob
 
@@ -244,11 +246,22 @@ class A2CAgent:
 
                 if player == agent_player:
                     # print('player')
-                    action, log_prob = self._get_action(self.actor, state)
+                    action, log_prob = self.get_action(self.actor, state, recode_black_white=False)
                     #print(f"action: {action}")
                     #print(f"log prob: {log_prob}")
 
-                    next_state, reward, done, next_player = self.env.move(action)
+                    try:
+                        next_state, reward, done, next_player = self.env.move(action)
+                    except AssertionError:
+                        print('-------------------------Error---------------------------------')
+                        _, _, tb = sys.exc_info()
+                        traceback.print_tb(tb)  # Fixed format
+                        print('agent')
+                        print(self.get_action_space(recode_black_white=False))
+                        self.env.print(invert_colors=False)
+
+                        print(action)
+                        exit(0)
                     #print(next_state)
                     #print(reward)
                     #print(done)
@@ -258,12 +271,25 @@ class A2CAgent:
                 else:
                     # print('random')
                     if self.opponent is not None:
-                        action, _ = self._get_action(self.opponent, state)
-                        next_state, reward, done, next_player = self.env.move(action)
+
+                        action, _ = self.get_action(self.opponent, state, recode_black_white=True)
+                        try:
+                            action = self.env.recode_coordinates(action)
+                            next_state, reward, done, next_player = self.env.move(action)
+                        except AssertionError:
+                            print('-------------------------Error---------------------------------')
+                            _, _, tb = sys.exc_info()
+                            traceback.print_tb(tb)  # Fixed format
+                            print('opponent')
+                            print(self.get_action_space(recode_black_white=False))
+                            self.env.print(invert_colors=False)
+                            print(action)
+                            exit(0)
                         #print('opponent')
                     
                     else:
                         next_state, reward, done, next_player = self.env._random_move()
+
 
                 if done:
                     #self.env.print(invert_colors=False)
@@ -327,7 +353,7 @@ class A2CAgent:
 
 dt = datetime.datetime.now()
         
-version = 2
+version = 3
         
 opponent = load(f'v{version - 1}_hex_actor.a2c')
 episodes = 200000
@@ -344,3 +370,4 @@ for ep in range(10):
     print(f'mean {ep*e} - {(ep+1) * e }: {np.mean(agent.episode_rewards[int(ep*e) : int((ep+1) * e)])}')
     
 print(datetime.datetime.now() - dt)
+

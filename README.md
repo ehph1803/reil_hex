@@ -13,3 +13,7 @@ v1_hex_actor.a2c: Agent trained against random player
 v1_hex_episode_rewards.a2c: list of episode rewards from training of v1_hex_actor.a2c
 
 v1_reward_hex.png: reward plot from training of v1_hex_actor.a2c
+
+
+Anmerkungen:
+Beim Trainieren von einem neuen Agent wird der Action Space 

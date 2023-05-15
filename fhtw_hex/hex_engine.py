@@ -62,11 +62,11 @@ class hexPosition(object):
         # change the active player
         self.player *= -1
         # evaluate the position
-        self.evaluate(verbose=False)
+        done = self.evaluate(verbose=False)
         # append to history
         self.history.append(deepcopy(self.board))
 
-        return self.board, self.winner, self.winner != 0, self.player
+        return self.board, self.winner, done, self.player
 
     def print(self, invert_colors=True):
         """
@@ -162,8 +162,10 @@ class hexPosition(object):
         """
         Evaluates the board position and adjusts the 'winner' attribute of the object accordingly.
         """
-        self._evaluate_white(verbose=verbose)
-        self._evaluate_black(verbose=verbose)
+        white = self._evaluate_white(verbose=verbose)
+        black = self._evaluate_black(verbose=verbose)
+
+        return white or black
 
     def _evaluate_white(self, verbose):
         """
