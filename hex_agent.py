@@ -1,18 +1,14 @@
+import os
+import random
 import sys
 import traceback
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as func
-from torch.distributions import Categorical
-import torch.optim as optim
 
 #other imports
-import math
-import random
 import datetime
 import matplotlib.pyplot as plt
-from collections import namedtuple, deque, OrderedDict
 
 import numpy as np
 from joblib import dump, load
@@ -268,11 +264,24 @@ class A2CAgent:
 
                     self.memory.add(log_prob, self.critic(state), reward, done)
 
+                # Abwechselnd gegen verschiedene vorversionen spielen und mit wahrscheinlichkeit 10% gegen random
                 else:
                     # print('random')
-                    if self.opponent is not None:
-
-                        action, _ = self.get_action(self.opponent, state, recode_black_white=True)
+                    # turn board 90° and multiply with -1 as agents are trained on playing white
+                    turned_board = [list(row) for row in zip(*reversed(state))]
+                    turned_board = [[j*-1 for j in i] for i in turned_board]
+                    
+                    """print("-------real---------")
+                    for l in state:
+                        print(l)
+                    print("-------turned---------")
+                    for l in turned_board:
+                        print(l)"""
+                    
+                    r = random.random()
+                    if self.opponent is not None and r < 0.1:
+                        opponent = random.choice(self.opponent)
+                        action, _ = self.get_action(opponent, turned_board, recode_black_white=True)
                         try:
                             action = self.env.recode_coordinates(action)
                             next_state, reward, done, next_player = self.env.move(action)
@@ -353,11 +362,20 @@ class A2CAgent:
 
 dt = datetime.datetime.now()
         
-version = 3
-        
-opponent = load(f'v{version - 1}_hex_actor.a2c')
-episodes = 200000
-agent = A2CAgent(board_size=7, opponent=opponent)
+version = 4
+
+if os.path.isfile(f'v{version}_hex_actor.a2c'):
+    print("This version already exists. Higher the version number to start training the agent.")
+    exit(0)
+
+
+opponents = []
+
+for i in range(1, version):
+    opponents.append(load(f'v{i}_hex_actor.a2c'))
+
+episodes = 50000
+agent = A2CAgent(board_size=7, opponent=opponents)
 agent.learn(num_episodes=episodes)
 agent.plot_rewards(version=version)
 
