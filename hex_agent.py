@@ -181,7 +181,7 @@ class A2CAgent:
 
     def plot_durations(self, averaging_window=50, title=""):
         """
-        Visually represent the learning history to standard output.
+        Visually represent the reward history.
         """
         averages = []
         for i in range(1, len(self.episode_durations) + 1):
@@ -222,8 +222,16 @@ class A2CAgent:
         action = action_space[action.detach().numpy()]
 
         return action, log_prob
+    
+    def evaluate(player, opponent):
+        print('evaluate...')
+        for i in range(100):
+            pass
+            # TODO: player vs opponent
+        #TODO: if 80% gewonnen: save
+        
 
-    def learn(self, num_episodes=500, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1):
+    def learn(self, num_episodes=500, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_nach=5000):
         adam_actor = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         adam_critic = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
@@ -235,6 +243,13 @@ class A2CAgent:
             steps = 0
 
             game_len = 0
+            
+            if (i_episode + 1) % eval_nach == 0:
+                evaluate(self.actor, self.opponent[len(self.opponent) - 1])
+            
+            opponent = random.choice(self.opponent)
+            
+            r = random.random()
 
             while not done:
                 game_len += 1
@@ -278,9 +293,7 @@ class A2CAgent:
                     for l in turned_board:
                         print(l)"""
                     
-                    r = random.random()
-                    if self.opponent is not None and r < 0.1:
-                        opponent = random.choice(self.opponent)
+                    if opponent is not None and r > 0.1:
                         action, _ = self.get_action(opponent, turned_board, recode_black_white=True)
                         try:
                             action = self.env.recode_coordinates(action)
@@ -362,7 +375,7 @@ class A2CAgent:
 
 dt = datetime.datetime.now()
         
-version = 4
+version = 3
 
 if os.path.isfile(f'v{version}_hex_actor.a2c'):
     print("This version already exists. Higher the version number to start training the agent.")
@@ -374,7 +387,7 @@ opponents = []
 for i in range(1, version):
     opponents.append(load(f'v{i}_hex_actor.a2c'))
 
-episodes = 50000
+episodes = 20000
 agent = A2CAgent(board_size=7, opponent=opponents)
 agent.learn(num_episodes=episodes)
 agent.plot_rewards(version=version)
@@ -388,4 +401,7 @@ for ep in range(10):
     print(f'mean {ep*e} - {(ep+1) * e }: {np.mean(agent.episode_rewards[int(ep*e) : int((ep+1) * e)])}')
     
 print(datetime.datetime.now() - dt)
+
+## alle z.B. 5000 spiele evaluieren, ob speichern soll, oder ob man weitertrainiert
+## evaluierung: z.B. 100 Spiele gegen letzte Version und wenn z.B. 80 Spiele gewonnen: abspeichern
 
