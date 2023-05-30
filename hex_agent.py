@@ -223,15 +223,21 @@ class A2CAgent:
 
         return action, log_prob
     
-    def evaluate(player, opponent):
+    def evaluate(self, player, num_eval)->bool:
         print('evaluate...')
-        for i in range(100):
-            pass
-            # TODO: player vs opponent
-        #TODO: if 80% gewonnen: save
+        counter = 0
+        for i in range(len(self.episode_rewards)-num_eval,len(self.episode_rewards)):
+            if self.episode_rewards[i] == 1:
+                counter+=1
+            if (counter * 100/num_eval)>=90:
+                return True
+        return False
+
+        #print(self.episode_rewards[0])
+
         
 
-    def learn(self, num_episodes=500, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_nach=5000):
+    def learn(self, num_episodes=5000, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_nach=500):
         adam_actor = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         adam_critic = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
@@ -245,8 +251,9 @@ class A2CAgent:
             game_len = 0
             
             if (i_episode + 1) % eval_nach == 0:
-                evaluate(self.actor, self.opponent[len(self.opponent) - 1])
-            
+                if self.evaluate(self.actor, eval_nach):
+                    break
+
             opponent = random.choice(self.opponent)
             
             r = random.random()
@@ -387,9 +394,10 @@ opponents = []
 for i in range(1, version):
     opponents.append(load(f'v{i}_hex_actor.a2c'))
 
-episodes = 20000
+episodes = 100
+evaluation_num=10
 agent = A2CAgent(board_size=7, opponent=opponents)
-agent.learn(num_episodes=episodes)
+agent.learn(num_episodes=episodes, eval_nach=evaluation_num)
 agent.plot_rewards(version=version)
 
 dump(agent.actor, f"v{version}_hex_actor.a2c")
