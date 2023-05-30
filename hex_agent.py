@@ -383,32 +383,35 @@ class A2CAgent:
 dt = datetime.datetime.now()
         
 version = 3
+train_anz = 10
 
 if os.path.isfile(f'v{version}_hex_actor.a2c'):
     print("This version already exists. Higher the version number to start training the agent.")
     exit(0)
 
-
-opponents = []
-
-for i in range(1, version):
-    opponents.append(load(f'v{i}_hex_actor.a2c'))
-
-episodes = 100
-evaluation_num=10
-agent = A2CAgent(board_size=7, opponent=opponents)
-agent.learn(num_episodes=episodes, eval_nach=evaluation_num)
-agent.plot_rewards(version=version)
-
-dump(agent.actor, f"v{version}_hex_actor.a2c")
-dump(agent.episode_rewards, f"v{version}_hex_episode_rewards.a2c")
-print(agent.episode_rewards)
-
-for ep in range(10):
-    e = episodes / 10
-    print(f'mean {ep*e} - {(ep+1) * e }: {np.mean(agent.episode_rewards[int(ep*e) : int((ep+1) * e)])}')
+for i in range(train_anz):
     
-print(datetime.datetime.now() - dt)
+    opponents = []
+
+    for i in range(1, version):
+        opponents.append(load(f'v{i}_hex_actor.a2c'))
+
+    episodes = 1000000
+    evaluation_num=2000
+    agent = A2CAgent(board_size=7, opponent=opponents)
+    agent.learn(num_episodes=episodes, eval_nach=evaluation_num)
+    agent.plot_rewards(version=version)
+
+    dump(agent.actor, f"v{version}_hex_actor.a2c")
+    dump(agent.episode_rewards, f"v{version}_hex_episode_rewards.a2c")
+    print(agent.episode_rewards)
+
+    for ep in range(10):
+        e = episodes / 10
+        print(f'mean {ep*e} - {(ep+1) * e }: {np.mean(agent.episode_rewards[int(ep*e) : int((ep+1) * e)])}')
+
+    print(datetime.datetime.now() - dt)
+    version += 1
 
 ## alle z.B. 5000 spiele evaluieren, ob speichern soll, oder ob man weitertrainiert
 ## evaluierung: z.B. 100 Spiele gegen letzte Version und wenn z.B. 80 Spiele gewonnen: abspeichern
