@@ -384,6 +384,7 @@ dt = datetime.datetime.now()
         
 version = 3
 train_anz = 10
+last_n_versions = 9
 
 if os.path.isfile(f'v{version}_hex_actor.a2c'):
     print("This version already exists. Higher the version number to start training the agent.")
@@ -393,7 +394,7 @@ for i in range(train_anz):
     
     opponents = []
 
-    for i in range(1, version):
+    for i in range(version-las_n_versions, version):
         opponents.append(load(f'v{i}_hex_actor.a2c'))
 
     episodes = 1000000
