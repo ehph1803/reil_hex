@@ -1,12 +1,10 @@
 import os
 import random
-import sys
-import traceback
 
 import torch
 import torch.nn as nn
 
-#other imports
+# other imports
 import datetime
 import matplotlib.pyplot as plt
 
@@ -16,7 +14,15 @@ from joblib import dump, load
 # hex env
 from fhtw_hex.hex_engine import hexPosition
 
-torch.set_printoptions(threshold=10000)
+# torch.set_printoptions(threshold=10000)
+
+# Variables to adapt
+AGENT_VERSION_NUMBER = 12
+NUM_AGENTS_TO_TRAIN = 1
+TRAIN_ON_LAST_NUM = 5
+MAX_EPISODES = 1000
+EVAL_AFTER_X_EPISODES = 100
+HEX_BOARD_SIZE = 7
 
 
 class Actor(nn.Module):
@@ -48,11 +54,11 @@ class Actor(nn.Module):
 
     def forward(self, X):
         tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-        #print(len(tensor))
+        # print(len(tensor))
         tensor.unsqueeze_(-1)
         tensor = tensor.expand(len(tensor), len(tensor), 1)
         tensor = tensor.permute(2, 0, 1)
-        #print(tensor)
+        # print(tensor)
 
         x = self.conv(tensor)
         x = torch.transpose(x, 0, 1)
@@ -89,11 +95,11 @@ class Critic(nn.Module):
 
     def forward(self, X):
         tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
-        #print(len(tensor))
+        # print(len(tensor))
         tensor.unsqueeze_(-1)
         tensor = tensor.expand(len(tensor), len(tensor), 1)
         tensor = tensor.permute(2, 0, 1)
-        #print(tensor)
+        # print(tensor)
 
         x = self.conv(tensor)
         x = torch.transpose(x, 0, 1)
@@ -139,7 +145,6 @@ class Memory:
         return len(self.rewards)
 
 
-
 class A2CAgent:
     """
         A2C Learning wrapper.
@@ -154,27 +159,26 @@ class A2CAgent:
             The transition memory of the A2C learner.
         n_actions : int
             Number of actions in the environment = board size squared.
-        episode_reward : list[int]
+        episode_rewards : list[int]
             A list of episode rewards. In principle if agent won (1), lost (-1) or tied (0)
     """
 
-    def __init__(self, board_size=7, env=None, memory_length=1000, kernel_size=3, opponent=None):
-        self.env = hexPosition(size=board_size)
+    def __init__(self, board_size=7, env=None, kernel_size=3, opponents=None):
+        self.env = hexPosition(size=board_size) if env is None else env
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(self.device)
-        self.n_actions = board_size**2
-        
+        # print(self.device)
+        self.n_actions = board_size ** 2
+
         self.state, self.player, self.winner = self.env.reset()
-        
+
         self.episode_rewards = []
         self.episode_durations = []
         self.memory = Memory()
 
         self.actor = Actor(self.n_actions, self.device, in_channels=1, kernel_size=kernel_size)
-        # set up critic
-        # TODO:
-        self.critic = Critic(self.device, in_channels=1, kernel_size=kernel_size)        
-        self.opponent = opponent
+        self.critic = Critic(self.device, in_channels=1, kernel_size=kernel_size)
+
+        self.opponents = opponents
 
     def get_action_space(self, recode_black_white=True):
         return self.env.get_action_space(recode_black_as_white=recode_black_white)
@@ -199,90 +203,76 @@ class A2CAgent:
 
     def get_action(self, actor, state, recode_black_white=False):
         probs = actor(state)
-        #print(f"actual probs: {probs}")
+        # print(f"actual probs: {probs}")
         # remove played spaces from probabilities
         action_space = self.get_action_space(recode_black_white=recode_black_white)
-        #print(action_space)
+        # print(action_space)
         free_logic = torch.zeros(probs.numel(), dtype=torch.bool)
 
         for (x, y) in action_space:
-            free_logic[x*self.env.size + y] = 1
+            free_logic[x * self.env.size + y] = 1
 
-        #print(played_logic)
-        #print(probs)
         new_probs = probs[free_logic]
-        #print(new_probs)
+        # print(new_probs)
 
+        # get distribution and sample action
         dist = torch.distributions.Categorical(probs=new_probs)
         action = dist.sample()
-        #print(action)
-        #print(action)
+        # print(action)
+        # print(action)
         log_prob = dist.log_prob(action)
 
         action = action_space[action.detach().numpy()]
 
         return action, log_prob
-    
-    def evaluate(self, player, num_eval)->bool:
+
+    def evaluate(self, num_eval) -> bool:
         print('evaluate...')
         counter = 0
-        for i in range(len(self.episode_rewards)-num_eval,len(self.episode_rewards)):
+        for i in range(len(self.episode_rewards) - num_eval, len(self.episode_rewards)):
             if self.episode_rewards[i] == 1:
-                counter+=1
-            if (counter * 100/num_eval)>=90:
+                counter += 1
+            if (counter * 100 / num_eval) >= 90:
                 return True
         return False
 
-        #print(self.episode_rewards[0])
+        # print(self.episode_rewards[0])
 
-        
-
-    def learn(self, num_episodes=5000, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_nach=500):
+    def learn(self, num_episodes=5000, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_after=500):
         adam_actor = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         adam_critic = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
         for i_episode in range(num_episodes):
             print(f"episode: {i_episode}")
             done = False
-            total_reward = 0
             state, player, winner = self.env.reset()
-            steps = 0
 
             game_len = 0
-            
-            if (i_episode + 1) % eval_nach == 0:
-                if self.evaluate(self.actor, eval_nach):
+
+            if (i_episode + 1) % eval_after == 0:
+                # if evaluation is True stop training
+                if self.evaluate(eval_after):
                     break
 
-            opponent = random.choice(self.opponent)
-            
+            opponent = random.choice(self.opponents)
+
             r = random.random()
 
             while not done:
                 game_len += 1
-                #print(f"game len: {game_len}")
+                # print(f"game len: {game_len}")
 
                 if player == agent_player:
                     # print('player')
                     action, log_prob = self.get_action(self.actor, state, recode_black_white=False)
-                    #print(f"action: {action}")
-                    #print(f"log prob: {log_prob}")
+                    # print(f"action: {action}")
+                    # print(f"log prob: {log_prob}")
 
-                    try:
-                        next_state, reward, done, next_player = self.env.move(action)
-                    except AssertionError:
-                        print('-------------------------Error---------------------------------')
-                        _, _, tb = sys.exc_info()
-                        traceback.print_tb(tb)  # Fixed format
-                        print('agent')
-                        print(self.get_action_space(recode_black_white=False))
-                        self.env.print(invert_colors=False)
+                    next_state, reward, done, next_player = self.env.move(action)
 
-                        print(action)
-                        exit(0)
-                    #print(next_state)
-                    #print(reward)
-                    #print(done)
+                    # print(next_state)
+                    # print(reward)
+                    # print(done)
 
                     self.memory.add(log_prob, self.critic(state), reward, done)
 
@@ -291,39 +281,21 @@ class A2CAgent:
                     # print('random')
                     # turn board 90° and multiply with -1 as agents are trained on playing white
                     turned_board = [list(row) for row in zip(*reversed(state))]
-                    turned_board = [[j*-1 for j in i] for i in turned_board]
-                    
-                    """print("-------real---------")
-                    for l in state:
-                        print(l)
-                    print("-------turned---------")
-                    for l in turned_board:
-                        print(l)"""
-                    
+                    turned_board = [[j * -1 for j in i] for i in turned_board]
+
                     if opponent is not None and r > 0.1:
                         action, _ = self.get_action(opponent, turned_board, recode_black_white=True)
-                        try:
-                            action = self.env.recode_coordinates(action)
-                            next_state, reward, done, next_player = self.env.move(action)
-                        except AssertionError:
-                            print('-------------------------Error---------------------------------')
-                            _, _, tb = sys.exc_info()
-                            traceback.print_tb(tb)  # Fixed format
-                            print('opponent')
-                            print(self.get_action_space(recode_black_white=False))
-                            self.env.print(invert_colors=False)
-                            print(action)
-                            exit(0)
-                        #print('opponent')
-                    
+
+                        action = self.env.recode_coordinates(action)
+                        next_state, reward, done, next_player = self.env.move(action)
+
                     else:
                         next_state, reward, done, next_player = self.env._random_move()
 
-
                 if done:
-                    #self.env.print(invert_colors=False)
+                    # self.env.print(invert_colors=False)
                     self.memory.rewards = [reward for i in self.memory.rewards]
-                    
+
                     # print("done")
                     last_q_val = self.critic(next_state).detach().data.numpy()
 
@@ -358,8 +330,8 @@ class A2CAgent:
                 player = next_player
                 state = next_state
 
-            #print(self.env.board)
-            #print(self.env.winner)
+            # print(self.env.board)
+            # print(self.env.winner)
             self.episode_rewards.append(self.env.winner * agent_player)
             print(f'reward: {self.env.winner}')
 
@@ -368,11 +340,11 @@ class A2CAgent:
         Visually represent the learning history to standard output.
         """
         averages = []
-        for i in range(1,len(self.episode_rewards)+1):
-            lower = max(0, i-averaging_window)
-            averages.append(sum(self.episode_rewards[lower:i])/(i-lower))
+        for i in range(1, len(self.episode_rewards) + 1):
+            lower = max(0, i - averaging_window)
+            averages.append(sum(self.episode_rewards[lower:i]) / (i - lower))
         plt.xlabel("Episode")
-        plt.ylabel("Episode length with "+str(averaging_window)+"-running average")
+        plt.ylabel("Episode length with " + str(averaging_window) + "-running average")
         plt.title(title)
         plt.plot(averages, color="black")
         plt.scatter(range(len(self.episode_rewards)), self.episode_rewards, s=2)
@@ -380,40 +352,36 @@ class A2CAgent:
         plt.savefig(f"v{version}_reward_hex.png")
 
 
-dt = datetime.datetime.now()
-        
-version = 3
-train_anz = 10
-last_n_versions = 9
+def main():
+    version = AGENT_VERSION_NUMBER
+    if os.path.isfile(f'v{version}_hex_actor.a2c'):
+        print("This version already exists. Higher the version number to start training the agent.")
+        exit(0)
 
-if os.path.isfile(f'v{version}_hex_actor.a2c'):
-    print("This version already exists. Higher the version number to start training the agent.")
-    exit(0)
+    for i in range(NUM_AGENTS_TO_TRAIN):
+        # save time to see how long the training took
+        dt = datetime.datetime.now()
 
-for i in range(train_anz):
-    
-    opponents = []
+        opponents = []
 
-    for i in range(version-las_n_versions, version):
-        opponents.append(load(f'v{i}_hex_actor.a2c'))
+        for x in range(version - TRAIN_ON_LAST_NUM, version):
+            try:
+                opponents.append(load(f'v{x}_hex_actor.a2c'))
 
-    episodes = 1000000
-    evaluation_num=2000
-    agent = A2CAgent(board_size=7, opponent=opponents)
-    agent.learn(num_episodes=episodes, eval_nach=evaluation_num)
-    agent.plot_rewards(version=version)
+            except:
+                print(f'Version {x} does not exist')
 
-    dump(agent.actor, f"v{version}_hex_actor.a2c")
-    dump(agent.episode_rewards, f"v{version}_hex_episode_rewards.a2c")
-    print(agent.episode_rewards)
+        agent = A2CAgent(board_size=HEX_BOARD_SIZE, opponents=opponents)
+        agent.learn(num_episodes=MAX_EPISODES, eval_after=EVAL_AFTER_X_EPISODES)
+        agent.plot_rewards(version=version)
 
-    for ep in range(10):
-        e = episodes / 10
-        print(f'mean {ep*e} - {(ep+1) * e }: {np.mean(agent.episode_rewards[int(ep*e) : int((ep+1) * e)])}')
+        dump(agent.actor, f"v{version}_hex_actor.a2c")
+        dump(agent.episode_rewards, f"v{version}_hex_episode_rewards.a2c")
+        print(agent.episode_rewards)
 
-    print(datetime.datetime.now() - dt)
-    version += 1
+        print(datetime.datetime.now() - dt)
+        version += 1
 
-## alle z.B. 5000 spiele evaluieren, ob speichern soll, oder ob man weitertrainiert
-## evaluierung: z.B. 100 Spiele gegen letzte Version und wenn z.B. 80 Spiele gewonnen: abspeichern
 
+if __name__ == '__main__':
+    main()

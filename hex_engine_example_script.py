@@ -4,15 +4,12 @@ import sys
 #importing the module
 from fhtw_hex import hex_engine as engine
 #this is how you will provide the agent you generate during the group project
-from fhtw_hex import example as eg
-import test_machine as test
+
+import test_machine
+import test_machine_random
 
 #initializing a game object
 game = engine.hexPosition()
-print(game.get_action_space())
 
-#play the game against a random player, human plays 'black'
-game.human_vs_machine(human_player=-1, machine=test.machine)
-
-#play the game against the example agent, human play 'white'
-#game.human_vs_machine(human_player=1, machine=eg.machine)
+#play the trained actor against a random machine
+game.machine_vs_machine(machine1=test_machine.machine, machine2=test_machine_random.machine)
