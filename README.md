@@ -16,7 +16,9 @@ hex_agent.py:
 
 ### Files explanation
  - hex_engine_example_script.py: starts a game of the agent vs random 
- - test_machine.py: implements the choosing of an action from a2c agent
+ - test_machine.py: 
+   - implements the choosing of an action from a2c agent
+   - uses last version of agent, must be transformed to state_dict beforehand
  - test_machine_random.py: implements a random player
  - v{x}_hex_actor.a2c: Trained agent, saved by joblib
  - v{x}_hex_episode_rewards.a2c: list of episode rewards from training of agent {x}
