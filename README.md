@@ -14,6 +14,7 @@ hex_agent.py:
    - EVAL_AFTER_X_EPISODES: define after how many episodes it will be evaluated if to stop training or further train
    - HEX_BOARD_SIZE: define the board size, mention, that previous versions need to have the same board size
 
+### Files explanation
 hex_engine_example_script.py: 
  - starts a game of the agent vs random
 
