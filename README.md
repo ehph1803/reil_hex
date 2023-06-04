@@ -21,7 +21,7 @@ hex_agent.py:
    - uses last version of agent, must be transformed to state_dict beforehand
  - test_machine_random.py: implements a random player
  - v{x}_hex_actor.a2c: Trained agent, saved by joblib
- - v{x}_hex_episode_rewards.a2c: list of episode rewards from training of agent {x}
+ - v{x}_hex_episode_rewards.a2c: list of episode rewards from training of agent {x}, saved by joblib
  - v{x}_reward_hex.png: reward plot from training of agent {x}
  - actor_final_state_dict.torch:
    - state dict of the torch nn
