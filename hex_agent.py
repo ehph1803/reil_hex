@@ -161,6 +161,12 @@ class A2CAgent:
             Number of actions in the environment = board size squared.
         episode_rewards : list[int]
             A list of episode rewards. In principle if agent won (1), lost (-1) or tied (0)
+        actor: torch.nn.Module
+            Actor for A2C
+        critic: torch.nn.Module
+            Critic for A2C
+        opponents: list
+            List of possible opponents
     """
 
     def __init__(self, board_size=7, env=None, kernel_size=3, opponents=None):
@@ -198,10 +204,10 @@ class A2CAgent:
         plt.scatter(range(len(self.episode_durations)), self.episode_durations, s=2)
         plt.show()
 
-    def play(self, num_episodes=500, gamma=0.99, lr_actor=1e-3, lr_critic=1e-3):
-        pass
-
     def get_action(self, actor, state, recode_black_white=False):
+        """
+            Get an action and log probability from the possible action space of the environment.
+        """
         probs = actor(state)
         # print(f"actual probs: {probs}")
         # remove played spaces from probabilities
@@ -227,6 +233,9 @@ class A2CAgent:
         return action, log_prob
 
     def evaluate(self, num_eval) -> bool:
+        """
+            Evaluate the last num_eval plays to know if learning can be stopped
+        """
         print('evaluate...')
         counter = 0
         for i in range(len(self.episode_rewards) - num_eval, len(self.episode_rewards)):
@@ -239,6 +248,25 @@ class A2CAgent:
         # print(self.episode_rewards[0])
 
     def learn(self, num_episodes=5000, gamma=0.99, lr_actor=1e-4, lr_critic=1e-4, agent_player=1, eval_after=500):
+        """
+            Training the model
+            Parameters
+            ----------
+            num_episodes : int
+                Number of epochs to train
+            gamma : float
+               
+            lr_actor: float
+                Learning rate for the actor
+            lr_critic: float
+                Learning rate for the critic
+            agent_player: int
+                1: agent plays as white
+                -1: agent plays as black
+            eval_after: int
+                Evaluate after x plays
+        """
+
         adam_actor = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
         adam_critic = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
@@ -323,6 +351,8 @@ class A2CAgent:
                     adam_actor.zero_grad()
                     actor_loss.backward()
                     adam_actor.step()
+
+                    # clipping gradients as somehow exploded gradients appeared
                     torch.nn.utils.clip_grad_norm(parameters=self.actor.parameters(), max_norm=10, norm_type=2.0)
 
                     self.memory.clear()
