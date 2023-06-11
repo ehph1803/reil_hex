@@ -28,3 +28,5 @@ hex_agent.py:
  - fhtw_hex/submission/facade.py: 
    - implements the choosing of an action from a2c agent
    - uses last version of agent, must be transformed to state_dict beforehand with generate_torch_dict_from_joblib.py and copied to the folder fhtw_hex/submission
+ - fhtw_hex/submission/actor_final_state_dict.torch:
+   - state dict of the final actor
