@@ -44,7 +44,7 @@ class Actor(nn.Module):
         return x.flatten()
 
 
-actor_file = 'v14_hex_actor.a2c'
+actor_file = 'v17_hex_actor.a2c'
 
 actor = load(actor_file)
 torch.save(actor.state_dict(), 'actor_final_state_dict.torch')
